@@ -59,7 +59,10 @@ With Mausoleum installed, the command line application can be invoked with the f
         key                     Name of the new or existing tomb key file
 
     optional arguments:
-        --open                  Used when wanting to open a tomb after creation
+        --open                  Used when wanting to open a tomb after creation or resizing
+
+If a key is not supplied as a command line argument, the application will search for a key with
+the name of the tomb with .key as the suffix.
 
 Example of creating a new tomb and opening it thereafter::
 
@@ -91,6 +94,13 @@ Mausoleum may be imported as a module as seen in the following example:
             mausoleum.wrapper.dig_tomb(name, size)
             mausoleum.wrapper.forge_tomb(key, password)
             mausoleum.wrapper.lock_tomb(name, key, password)
+
+*************
+Contributions
+*************
+
+All contributions are welcome! Feel free to submit a pull request for trivial
+changes. For other changes, please open an issue on the repository's issue tracker.
 
 .. |travis| image:: https://img.shields.io/travis/mandeep/Mausoleum.svg 
     :target: https://travis-ci.org/mandeep/Mausoleum

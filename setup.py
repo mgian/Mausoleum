@@ -3,8 +3,8 @@ from setuptools import setup
 
 setup(
     name='mausoleum',
-    version='0.2.4',
-    description='A Python wrapper and GUI application for Tomb',
+    version='0.3.1',
+    description='A Python GUI, CLI, and wrapper for Tomb',
     author='Mandeep',
     author_email='info@mandeep.xyz',
     license='GPLv3+',
@@ -19,7 +19,9 @@ setup(
         ]
     },
     install_requires=[
-        'click',
+        'appdirs==1.4.0',
+        'click==6.6',
+        'pytoml==0.1.10',
     ],
     keywords='Mausoleum',
     classifiers=[

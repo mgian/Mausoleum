@@ -1,12 +1,15 @@
+import os
+import pkg_resources
+import shutil
 import sys
 
-import pkg_resources
-
+from appdirs import AppDirs
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QDesktopWidget, QDialog, QFileDialog,
                              QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget,
                              QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
+import pytoml
 
 from mausoleum import wrapper
 
@@ -14,9 +17,12 @@ from mausoleum import wrapper
 class CreateTomb(QWidget):
     """Creates the abstract widget to be used as a create page."""
 
-    def __init__(self, parent=None):
+    def __init__(self, path, parent=None):
         """Initialize the create page's configuration and parameter groups."""
         super(CreateTomb, self).__init__(parent)
+
+        self.path = path
+
         layout = QVBoxLayout()
 
         tomb_group = QGroupBox('Create Tomb')
@@ -100,6 +106,10 @@ class CreateTomb(QWidget):
 
         self.message = QLabel()
 
+        if shutil.which('tomb') is None:
+            self.message.setText('Warning: Tomb Installation Not Found; '
+                                 'Set Tomb Path On Config Tab')
+
         layout.addWidget(tomb_group)
         layout.addWidget(parameters_group)
         layout.addWidget(self.create_button, alignment=Qt.AlignCenter)
@@ -125,19 +135,32 @@ class CreateTomb(QWidget):
         if self.key_password.text() == self.confirm_password.text():
             dig_command = wrapper.dig_tomb(self.tomb_name.text(), self.size_box.value())
             if self.random_checkbox.isChecked():
-                forge_command = wrapper.forge_tomb(self.key_name.text(), self.key_password.text(),
-                                                   self.sudo_password.text(), debug=True)
+                forge_command = wrapper.forge_tomb(self.key_name.text(),
+                                                   self.key_password.text(),
+                                                   self.path,
+                                                   self.sudo_password.text(),
+                                                   debug=True)
             else:
-                forge_command = wrapper.forge_tomb(self.key_name.text(), self.key_password.text(),
+                forge_command = wrapper.forge_tomb(self.key_name.text(),
+                                                   self.key_password.text(),
+                                                   self.path,
                                                    self.sudo_password.text())
-            lock_command = wrapper.lock_tomb(self.tomb_name.text(), self.key_name.text(),
-                                             self.key_password.text(), self.sudo_password.text())
+            lock_command = wrapper.lock_tomb(self.tomb_name.text(),
+                                             self.key_name.text(),
+                                             self.key_password.text(),
+                                             self.path,
+                                             self.sudo_password.text())
             if (dig_command == 0 and forge_command[0] is not None and
                     lock_command[0] is not None):
                 self.message.setText('Tomb Created Successfully')
                 if self.open_checkbox.isChecked():
-                    wrapper.open_tomb(self.tomb_name.text(), self.key_name.text(),
-                                      self.key_password.text(), self.sudo_password.text())
+                    open_command = wrapper.open_tomb(self.tomb_name.text(),
+                                                     self.key_name.text(),
+                                                     self.key_password.text(),
+                                                     self.path,
+                                                     self.sudo_password.text())
+                    if open_command[0] is not None:
+                        self.message.setText('Tomb Opened Successfully')
         else:
             self.message.setText('Key Passwords Do Not Match')
             self.key_password.clear()
@@ -147,9 +170,11 @@ class CreateTomb(QWidget):
 class OpenTomb(QWidget):
     """Creates the abstract widget to be used as an open page."""
 
-    def __init__(self, parent=None):
+    def __init__(self, path, parent=None):
         """Initialize the open page's configuration group."""
         super(OpenTomb, self).__init__(parent)
+
+        self.path = path
 
         layout = QVBoxLayout()
 
@@ -220,8 +245,11 @@ class OpenTomb(QWidget):
         place passwords are stored is in QLineEdit. QLineEdit will clear the passwords,
         however we must make sure that the application is not stored in swap.
         """
-        open_command = wrapper.open_tomb(self.tomb_path.text(), self.key_path.text(),
-                                         self.key_password.text(), self.sudo_password.text())
+        open_command = wrapper.open_tomb(self.tomb_path.text(),
+                                         self.key_path.text(),
+                                         self.key_password.text(),
+                                         self.path,
+                                         self.sudo_password.text())
         if open_command[0] is not None:
             self.message.setText('Tomb Opened Successfully')
             self.tomb_path.clear()
@@ -233,9 +261,11 @@ class OpenTomb(QWidget):
 class CloseTomb(QWidget):
     """Creates the abstract widget to be used as a close page."""
 
-    def __init__(self, parent=None):
+    def __init__(self, path, parent=None):
         """Initialize the close page's configuration group."""
         super(CloseTomb, self).__init__(parent)
+
+        self.path = path
 
         layout = QVBoxLayout()
 
@@ -256,16 +286,18 @@ class CloseTomb(QWidget):
 
         self.setLayout(layout)
 
-        self.close_all_button.clicked.connect(lambda: wrapper.close_tombs())
-        self.force_close_button.clicked.connect(lambda: wrapper.slam_tombs())
+        self.close_all_button.clicked.connect(lambda: wrapper.close_tombs(self.path))
+        self.force_close_button.clicked.connect(lambda: wrapper.slam_tombs(self.path))
 
 
 class ListTomb(QWidget):
     """Creates the abstract widget to be used as a list page."""
 
-    def __init__(self, parent=None):
+    def __init__(self, path, parent=None):
         """Initialize the list page's configuration group."""
         super(ListTomb, self).__init__(parent)
+
+        self.path = path
 
         layout = QVBoxLayout()
 
@@ -289,8 +321,81 @@ class ListTomb(QWidget):
     def update_list_items(self):
         """Clear the list and add any active tombs."""
         self.tomb_list.clear()
-        for line in wrapper.list_tombs():
+        for line in wrapper.list_tombs(self.path):
             self.tomb_list.addItem(line)
+
+
+class ConfigTomb(QWidget):
+    """Creates the abstract widget to be used as a config page."""
+
+    def __init__(self, parent=None):
+        """Initialize the config page's configuration group."""
+        super(ConfigTomb, self).__init__(parent)
+
+        config_directory = AppDirs('mausoleum', 'Mandeep').user_config_dir
+
+        if not os.path.exists(config_directory):
+            os.makedirs(config_directory)
+
+        settings = pkg_resources.resource_filename(__name__, 'settings.toml')
+        with open(settings) as default_config:
+            default_config = default_config.read()
+
+        self.user_config_file = os.path.join(config_directory, 'settings.toml')
+        if not os.path.isfile(self.user_config_file):
+            with open(self.user_config_file, 'a') as new_config_file:
+                new_config_file.write(default_config)
+
+        with open(self.user_config_file) as conffile:
+            self.config = pytoml.load(conffile)
+
+        config_box = QGroupBox("Configure Mausoleum")
+
+        self.tomb_path_label = QLabel('Tomb Path', self)
+        self.tomb_path_line = QLineEdit()
+        self.tomb_path_line.setReadOnly(True)
+        self.tomb_path_button = QPushButton('Select Path')
+
+        self.tomb_path_button.clicked.connect(lambda: self.select_tomb_install_path(self.config))
+
+        tomb_path_layout = QVBoxLayout()
+
+        tomb_path_config_layout = QHBoxLayout()
+        tomb_path_config_layout.addWidget(self.tomb_path_label)
+        tomb_path_config_layout.addWidget(self.tomb_path_line)
+        tomb_path_config_layout.addWidget(self.tomb_path_button)
+
+        tomb_path_layout.addLayout(tomb_path_config_layout)
+
+        config_box.setLayout(tomb_path_layout)
+
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(config_box)
+        main_layout.addStretch(1)
+        self.setLayout(main_layout)
+
+        self.set_tomb_path(self.config)
+
+    def select_tomb_install_path(self, config):
+        """Select Tomb's installation path."""
+        tomb_install_path = QFileDialog.getExistingDirectory(
+                            self, 'Select Tomb Installation Path')
+
+        if tomb_install_path:
+            self.tomb_path_line.setText(tomb_install_path)
+
+            config['configuration']['path'] = tomb_install_path
+
+            with open(self.user_config_file, 'w') as conffile:
+                pytoml.dump(conffile, config)
+
+    def set_tomb_path(self, config):
+        """Set Tomb's current installation path."""
+        current_tomb_path = config['configuration']['path']
+        if os.path.isdir(current_tomb_path):
+            self.tomb_path_line.setText(current_tomb_path)
+        else:
+            self.tomb_path_line.setText(shutil.which('tomb'))
 
 
 class Mausoleum(QDialog):
@@ -305,28 +410,32 @@ class Mausoleum(QDialog):
                                                       'ic_vpn_key_black_48dp_1x.png')
         self.setWindowIcon(QIcon(window_icon))
 
-        self.create_page = CreateTomb()
-        self.open_page = OpenTomb()
-        self.close_page = CloseTomb()
-        self.list_page = ListTomb()
+        self.tomb_current_path = ConfigTomb().tomb_path_line.text()
+
+        self.create_page = CreateTomb(self.tomb_current_path)
+        self.open_page = OpenTomb(self.tomb_current_path)
+        self.close_page = CloseTomb(self.tomb_current_path)
+        self.list_page = ListTomb(self.tomb_current_path)
+        self.config_page = ConfigTomb()
 
         self.pages = QTabWidget()
         self.pages.addTab(self.create_page, 'Create')
         self.pages.addTab(self.open_page, 'Open')
         self.pages.addTab(self.close_page, 'Close')
         self.pages.addTab(self.list_page, 'List')
+        self.pages.addTab(self.config_page, 'Config')
 
         dialog_layout = QHBoxLayout()
         dialog_layout.addWidget(self.pages)
 
         self.setLayout(dialog_layout)
 
-        self.create_page.create_button.clicked.connect(self.auto_update_list_items)
-        self.open_page.open_button.clicked.connect(self.auto_update_list_items)
-        self.close_page.close_all_button.clicked.connect(self.auto_update_list_items)
-        self.close_page.force_close_button.clicked.connect(self.auto_update_list_items)
+        self.create_page.create_button.clicked.connect(self.update_list_items)
+        self.open_page.open_button.clicked.connect(self.update_list_items)
+        self.close_page.close_all_button.clicked.connect(self.update_list_items)
+        self.close_page.force_close_button.clicked.connect(self.update_list_items)
 
-    def auto_update_list_items(self):
+    def update_list_items(self):
         """Update the list of active tombs whenever a tomb is opened or closed."""
         QTimer.singleShot(3000, self.list_page.update_list_items)
 
