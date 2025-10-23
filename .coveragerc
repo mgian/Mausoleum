@@ -1,4 +1,4 @@
-[report]
-omit = 
-    setup.py
-    mausoleum/__main__.py
+[run]
+omit =
+    */__init__.py
+    */tests/*

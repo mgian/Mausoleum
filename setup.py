@@ -1,16 +1,20 @@
 from setuptools import setup
+from pathlib import Path
+
+this_directory = Path(__file__).parent
+long_description = (this_directory / "README.rst").read_text()
 
 
 setup(
     name='mausoleum',
-    version='0.3.2',
+    use_scm_version={"write_to": "mausoleum/_version.py"},
     description='A Python GUI, CLI, and wrapper for Tomb',
+    long_description=long_description,
+    long_description_content_type='text/x-rst',
     author='Mandeep',
-    author_email='info@mandeep.xyz',
     license='GPLv3+',
     url='https://github.com/mandeep/Mausoleum',
-    packages=['mausoleum', 'mausoleum.images',
-              'mausoleum.tests'],
+    packages=['mausoleum', 'mausoleum.images'],
     package_data={'mausoleum.images': ['*.png'], 'mausoleum': ['*.toml']},
     entry_points={
         'console_scripts': [
@@ -18,16 +22,27 @@ setup(
             'mausoleum=mausoleum.wrapper:cli'
         ]
     },
+    setup_requires=["setuptools_scm>=8.0"],
     install_requires=[
-        'appdirs==1.4.0',
-        'click==6.6',
-        'pytoml==0.1.10',
+        'appdirs',
+        'click',
+        'pytoml',
+        'pyqt5'
     ],
+    extras_require={
+        'tests': [
+            'pytest',
+            'pytest-cov',
+            'pytest-qt',
+            'pytest-xvfb',
+        ]
+    },
     keywords='Mausoleum',
     classifiers=[
         'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
-        'Development Status :: 3 - Alpha',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
     ]
 )

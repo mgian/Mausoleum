@@ -1,9 +1,9 @@
 [application]
 
 name = "Mausoleum"
-version = "0.3.1"
 
 [configuration]
 
 system_tray = false
 path = ""
+sudo_allowed_in_gui = true

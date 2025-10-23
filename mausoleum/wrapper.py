@@ -1,3 +1,4 @@
+import re
 import subprocess
 
 import click
@@ -16,7 +17,7 @@ def dig_tomb(name, size, path='tomb'):
     return subprocess.call([path, 'dig', '-s', str(size), name])
 
 
-def forge_tomb(key, password, path='tomb', sudo=None, debug=False):
+def forge_tomb(key, password, path='tomb', kdf=0, sudo=None, debug=False):
     """Forge a new key for a tomb container.
 
     Positional arguments:
@@ -25,16 +26,23 @@ def forge_tomb(key, password, path='tomb', sudo=None, debug=False):
 
     Keyword arguments:
     path -- the path to the tomb executable
+    kdf -- number of KDF iterations to perform, default is 0
     sudo -- the sudo password of the current admin, default is None
     debug -- used to test key generation
     """
-    arguments = ['sudo', '--stdin', path, 'forge', '--unsafe', '--tomb-pwd', password, key]
+    arguments = ['sudo', '--stdin', path, 'forge', '--unsafe', '--tomb-pwd', password, '-k', key]
+
     if debug:
-        arguments.extend(['--ignore-swap', '--use-urandom'])
+        arguments.extend(['--ignore-swap', '--use-random'])
+
+    if kdf > 0:
+        arguments.extend(['--kdf', str(kdf)])
+
     if sudo is not None:
         forge_command = subprocess.Popen(arguments, stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE, universal_newlines=True)
         return forge_command.communicate(sudo + '\n')
+
     return subprocess.call(arguments)
 
 
@@ -53,16 +61,36 @@ def lock_tomb(name, key, password, path='tomb', sudo=None, debug=False):
     """
     arguments = ['sudo', '--stdin', path, 'lock', '--unsafe', '--tomb-pwd',
                  password, name, '-k', key]
+
     if debug:
         arguments.append('--ignore-swap')
+
     if sudo is not None:
         lock_command = subprocess.Popen(arguments, stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, universal_newlines=True)
         return lock_command.communicate(sudo + '\n')
+
     return subprocess.call(arguments)
 
 
-def open_tomb(name, key, password, path='tomb', sudo=None):
+def construct_tomb(name, size, key, password, debug=False):
+    """Dig, forge, and lock a tomb container with the given key.
+
+    Positional arguments:
+    name -- the name of the container, e.g. secret.tomb
+    key -- the name of the container's key, e.g. secret.tomb.key
+    password -- the password of the container's key
+    debug -- ignore the swap partition for debugging purposes
+    """
+    construction = dig_tomb(name, size)
+    if construction == 0:
+        fabrication = forge_tomb(key, password, debug=debug)
+
+        if fabrication == 0:
+            lock_tomb(name, key, password, debug=debug)
+
+
+def open_tomb(name, key, password, path='tomb', read_only=False, sudo=None, mountpoint=None, debug=False):
     """Open a tomb container with the given key.
 
     Positional arguments:
@@ -71,18 +99,30 @@ def open_tomb(name, key, password, path='tomb', sudo=None):
     password -- the password of the container's key
 
     Keyword arguments:
+    path -- the path to the tomb executable
+    read_only -- mount the tomb as read only
     sudo -- the sudo password of the current admin, default is None
+    mountpoint -- where to mount the tomb
+    debug -- ignore the swap partitions for testing purposes
     """
     arguments = ['sudo', '--stdin', path, 'open', '--unsafe',
-                 '--tomb-pwd', password, name, '-k', key]
+                 '--tomb-pwd', password, '-k', key, name]
+    if debug:
+        arguments.insert(4, '--ignore-swap')
+    if mountpoint:
+        arguments.append(mountpoint)
+    if read_only:
+        arguments.extend(['-o', 'ro'])
+
     if sudo is not None:
         open_command = subprocess.Popen(arguments, stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, universal_newlines=True)
         return open_command.communicate(sudo + '\n')
+
     return subprocess.call(arguments)
 
 
-def resize_tomb(name, size, key, password, path='tomb'):
+def resize_tomb(name, size, key, password, path='tomb', sudo=None):
     """Resize a tomb container to the given size.
 
     Positional arguments:
@@ -93,9 +133,17 @@ def resize_tomb(name, size, key, password, path='tomb'):
 
     Keyword arguments:
     path -- the path to the tomb executable
+    sudo -- the sudo password of the current admin, default is None
     """
-    return subprocess.call([path, 'resize', name, '-s', str(size), '-k', key, '--unsafe',
-                            '--tomb-pwd', password])
+    arguments = ['sudo', '--stdin', path, 'resize', name, '-s', str(size),
+                 '-k', key, '--unsafe', '--tomb-pwd', password]
+
+    if sudo is not None:
+        resize_command = subprocess.Popen(arguments, stdin=subprocess.PIPE,
+                                          stdout=subprocess.PIPE, universal_newlines=True)
+        return resize_command.communicate(sudo + '\n')
+
+    return subprocess.call(arguments)
 
 
 def list_tombs(path='tomb'):
@@ -107,8 +155,9 @@ def list_tombs(path='tomb'):
     try:
         tomb_output = subprocess.check_output([path, 'list', '--no-color'],
                                               stderr=subprocess.STDOUT,
-                                              universal_newlines=True).split('\n')
-        return [line.replace('tomb  .  ', '') for line in tomb_output if 'open on' in line]
+                                              universal_newlines=True)
+        return re.findall(r'\[.*\] open on .*', tomb_output)
+
     except subprocess.CalledProcessError:
         return []
 
@@ -138,7 +187,48 @@ def slam_tombs(path='tomb'):
     Keyword argument:
     path -- the path to the tomb executable
     """
-    return subprocess.call([path, 'slam'])
+    return subprocess.call([path, 'slam', 'all'])
+
+
+def engrave_tomb(key, path='tomb'):
+    """Transform a tomb key into a QR code.
+
+    Positional argument:
+    key -- the name of the container's key, e.g. secret.tomb.key
+
+    Keyword arguments:
+    path -- the path to the tomb executable
+    """
+    return subprocess.call([path, 'engrave', '-k', key])
+
+
+def bury_tomb(image, key, password, path='tomb'):
+    """Embed a tomb key into an existing JPEG image.
+
+    Positional argument:
+    image -- the path to the image that will hide the tomb key
+    key -- the name of the container's key, e.g. secret.tomb.key
+    password -- the password of the container's key
+
+    Keyword arguments:
+    path -- the path to the tomb executable
+    """
+    return subprocess.call(['sudo', '--stdin', path, 'bury', image,
+                            '-k', key, '--unsafe', '--tomb-pwd', password])
+
+
+def exhume_tomb(image, password, path='tomb'):
+    """Exhume a tomb key from the given image file and print the key to stdout.
+
+    Positional argument:
+    image -- the path to the image that contains the tomb key
+    password -- the password of the container's key
+
+    Keyword arguments:
+    path -- the path to the tomb executable
+    """
+    return subprocess.call(['sudo', '--stdin', path, 'exhume', image,
+                            '--unsafe', '--tomb-pwd', password])
 
 
 @click.group()
@@ -165,9 +255,10 @@ def cli():
 @click.argument('name')
 @click.argument('size')
 @click.argument('key', required=False, default=None)
-@click.password_option()
+@click.option('--password', prompt=True, hide_input=True, confirmation_prompt=False)
 @click.option('--open', is_flag=True, help='Open a tomb after constructing it.')
-def construct(name, size, key, password, open):
+@click.option('--debug', is_flag=True, help='Ignore the swap partition.')
+def construct(name, size, key, password, open, debug):
     """Dig, forge, and lock a new tomb container.
 
     The default key name is the name of the tomb with .key appended as the suffix. If
@@ -176,22 +267,22 @@ def construct(name, size, key, password, open):
 
     To open the container after creation, use the --open flag.
     """
-    construction = dig_tomb(name, size)
     if key is None:
         key = '{}.key' .format(name)
-    if construction == 0:
-        fabrication = forge_tomb(key, password)
-        if fabrication == 0:
-            lock_tomb(name, key, password)
-            if open:
-                open_tomb(name, key, password)
+
+    construct_tomb(name, size, key, password, debug=debug)
+
+    if open:
+        open_tomb(name, key, password, debug=debug)
 
 
 @cli.command()
 @click.argument('name')
 @click.argument('key', required=False, default=None)
 @click.option('--password', prompt=True, hide_input=True, confirmation_prompt=False)
-def enter(name, key, password):
+@click.option('--mountpoint', default=None)
+@click.option('--debug', is_flag=True)
+def enter(name, key, password, mountpoint, debug):
     """Open an existing tomb container.
 
     The default key name is the name of the tomb with .key as the suffix. If the
@@ -199,7 +290,15 @@ def enter(name, key, password):
     """
     if key is None:
         key = '{}.key' .format(name)
-    open_tomb(name, key, password)
+
+    open_tomb(name, key, password, mountpoint=mountpoint, debug=debug)
+
+
+@cli.command()
+@click.argument('name')
+def leave(name):
+    """Close a currently open tomb."""
+    close_tomb(name=name)
 
 
 @cli.command()
@@ -208,7 +307,8 @@ def enter(name, key, password):
 @click.argument('key', required=False, default=None)
 @click.option('--password', prompt=True, hide_input=True, confirmation_prompt=False)
 @click.option('--open', is_flag=True, help='Open the tomb after resizing it.')
-def alter(name, size, key, password, open):
+@click.option('--debug', is_flag=True)
+def alter(name, size, key, password, open, debug):
     """Resize an existing tomb container.
 
     The default key name is the name of the tomb with .key as the suffix. If the
@@ -218,6 +318,54 @@ def alter(name, size, key, password, open):
     """
     if key is None:
         key = '{}.key' .format(name)
+
     resize_tomb(name, str(size), key, password)
+
     if open:
-        open_tomb(name, key, password)
+        open_tomb(name, key, password, debug=debug)
+
+
+@cli.command()
+@click.argument('key')
+def mold(key):
+    """Embed an existing tomb key into a QR code.
+
+    Requires the QREncode package.
+    """
+    engrave_tomb(key)
+
+
+@cli.command()
+@click.argument('image')
+@click.argument('key')
+@click.option('--password', prompt=True, hide_input=True, confirmation_prompt=False)
+def etch(image, key, password):
+    """Embed an existing tomb key into an existing JPEG image.
+
+    Requires the Steghide package.
+    """
+    bury_tomb(image, key, password)
+
+
+@cli.command()
+@click.argument('image')
+@click.option('--password', prompt=True, hide_input=True, confirmation_prompt=False)
+def resurrect(image, password):
+    """Print to stdout a tomb key that's embedded in a JPEG image."""
+    exhume_tomb(image, password)
+
+
+@cli.command(name='list')
+def list_cmd():
+    """Lists all opened tombs."""
+    tombs = list_tombs()
+    for tomb in tombs:
+        click.echo(tomb)
+    else:
+        click.echo("The cryptkeeper found no opened tombs.")
+
+
+@cli.command()
+def escape():
+    """Slams shut all open tombs."""
+    slam_tombs()

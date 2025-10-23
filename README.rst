@@ -1,21 +1,21 @@
-.. image:: mausoleum.png
+.. image:: https://raw.githubusercontent.com/mandeep/Mausoleum/master/mausoleum.png
+   :alt: Mausoleum Logo
 
-|travis| |coveralls| |dependency| |codacy| |pypiversion| |pypistatus| |pythonversion| |pypiformat| |license|
+|build| |pypiversion| |pythonversion| |pypiformat| |license|
 
 Mausoleum consists of a command line application and GUI application wrapped around Tomb
 (the Crypto Undertaker). Both applications were created with the intention of making
 it easier for users to interact with Tomb.
 
-.. image:: screenshot.png
-    :align: center
+.. image:: https://raw.githubusercontent.com/mandeep/Mausoleum/master/screenshot.png
+   :alt: Screenshot
 
 ************
 Installation
 ************
 
 As Mausoleum is purely a wrapper for Tomb, it requires Tomb to be installed locally. For Tomb installation
-details, please see: https://www.dyne.org/software/tomb/. The Mausoleum GUI application requires PyQt5
-to be installed locally. For PyQt5 installation instructions, please visit: https://www.riverbankcomputing.com/software/pyqt/download5.
+details, please see: https://www.dyne.org/software/tomb/.
 
 With your environment set, the following command may be used to install Mausoleum::
 
@@ -38,7 +38,9 @@ To run the GUI application, simply run the following command in a terminal::
 The command will open a new window that includes tabs that group Tomb functions into separate
 tabs. The 'Create' tab receives information needed to create a new tomb, the 'Open'
 tab allows the user to fill in information regarding the opening of an existing tomb,
-and the 'Close' tab lets the user close opened tombs.
+the 'Close' tab lets the user close opened tombs, the 'Resize' tab gives the user the ability
+to resize an existing tomb, the 'List' tab displays all active tombs, and the 'Config' tab
+allows the user to make configuration changes to the GUI.
 
 ************************
 Command Line Application
@@ -52,6 +54,9 @@ With Mausoleum installed, the command line application can be invoked with the f
         construct               Dig, forge, and lock a new tomb 
         enter                   Open an existing tomb
         alter                   Resize an existing tomb
+        mold                    Create a QR code from an existing tomb key
+        etch                    Embed an existing tomb key inside a JPEG image
+        resurrect               Print to stdout the tomb key embedded within the JPEG image
 
     positional arguments:
         name                    Name of the new or existing tomb
@@ -59,7 +64,7 @@ With Mausoleum installed, the command line application can be invoked with the f
         key                     Name of the new or existing tomb key file
 
     optional arguments:
-        --open                  Used when wanting to open a tomb after creation or resizing
+        --open                  Option that opens a tomb after creation or resizing
 
 If a key is not supplied as a command line argument, the application will search for a key with
 the name of the tomb with .key as the suffix.
@@ -75,6 +80,12 @@ Example of opening an existing tomb::
     $  mausoleum enter secret.tomb
     Password:
 
+Example of resizing an existing tomb::
+
+    $  mausoleum alter secret.tomb 200
+    Password:
+
+
 *******
 Wrapper
 *******
@@ -82,6 +93,7 @@ Wrapper
 Mausoleum may be imported as a module as seen in the following example:
 
 .. code:: python
+
 
     import mausoleum.wrapper
 
@@ -91,9 +103,8 @@ Mausoleum may be imported as a module as seen in the following example:
 
         for name in names:
             key = '{}.key' .format(name)
-            mausoleum.wrapper.dig_tomb(name, size)
-            mausoleum.wrapper.forge_tomb(key, password)
-            mausoleum.wrapper.lock_tomb(name, key, password)
+            mausoleum.wrapper.construct_tomb(name, size, key, password)
+
 
 *************
 Contributions
@@ -102,21 +113,13 @@ Contributions
 All contributions are welcome! Feel free to submit a pull request for trivial
 changes. For other changes, please open an issue on the repository's issue tracker.
 
-.. |travis| image:: https://img.shields.io/travis/mandeep/Mausoleum.svg 
-    :target: https://travis-ci.org/mandeep/Mausoleum
-.. |coveralls| image:: https://img.shields.io/coveralls/mandeep/Mausoleum.svg 
-    :target: https://coveralls.io/github/mandeep/Mausoleum
-.. |dependency| image:: https://img.shields.io/librariesio/github/mandeep/Mausoleum.svg
-    :target: https://dependencyci.com/github/mandeep/Mausoleum
-.. |codacy| image:: https://img.shields.io/codacy/grade/78a599f30d32444a98ba8a172edbed3d.svg 
-    :target: https://www.codacy.com/app/bhutanimandeep/Mausoleum
+.. |build| image::  https://img.shields.io/github/actions/workflow/status/mandeep/Mausoleum/python-tests.yml
+    :target: https://github.com/mandeep/Mausoleum/actions
 .. |pypiversion| image:: https://img.shields.io/pypi/v/mausoleum.svg 
-    :target: https://pypi.python.org/pypi/mausoleum/
-.. |pypistatus| image:: https://img.shields.io/pypi/status/mausoleum.svg 
-    :target: https://pypi.python.org/pypi/mausoleum/
+    :target: https://pypi.org/project/mausoleum/
 .. |pythonversion| image:: https://img.shields.io/pypi/pyversions/mausoleum.svg 
-    :target: https://pypi.python.org/pypi/mausoleum/
+    :target: https://pypi.org/project/mausoleum/
 .. |pypiformat| image:: https://img.shields.io/pypi/format/mausoleum.svg
-    :target: https://pypi.python.org/pypi/mausoleum/
+    :target: https://pypi.org/project/mausoleum/
 .. |license| image:: https://img.shields.io/pypi/l/mausoleum.svg
-    :target: https://pypi.python.org/pypi/mausoleum/
+    :target: https://pypi.org/project/mausoleum/
